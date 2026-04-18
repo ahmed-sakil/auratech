@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/product_taxonomy.dart';
 import '../../../core/router/app_routes.dart';
 import 'widgets/buyer_bottom_nav_bar.dart';
+import 'widgets/buyer_category_filter_bar.dart';
+import 'widgets/buyer_filter_sheet.dart';
+import 'widgets/buyer_product_grid_card.dart';
+import 'widgets/buyer_product_search_bar.dart';
 
 class BuyerHomeScreen extends StatefulWidget {
   const BuyerHomeScreen({super.key});
@@ -16,11 +21,41 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   bool _isLoading = true;
   Set<String> _addingProductIds = {};
   List<Map<String, dynamic>> _products = [];
+  final TextEditingController _searchController = TextEditingController();
+
+  String _selectedCategory = 'All';
+  String? _selectedSubcategory;
+  String _minPrice = '';
+  String _maxPrice = '';
+
+  List<String> get _categoryOptions => [
+        'All',
+        ...ProductTaxonomy.categoryList,
+      ];
+
+  int get _activeFilterCount {
+    var count = 0;
+
+    if (_selectedCategory != 'All') count++;
+    if (_selectedSubcategory != null && _selectedSubcategory!.isNotEmpty) {
+      count++;
+    }
+    if (_minPrice.trim().isNotEmpty) count++;
+    if (_maxPrice.trim().isNotEmpty) count++;
+
+    return count;
+  }
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadProducts() async {
@@ -47,6 +82,32 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         const SnackBar(content: Text('Could not load products')),
       );
     }
+  }
+
+  Future<void> _openFilterSheet() async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => BuyerFilterSheet(
+        selectedCategory: _selectedCategory,
+        selectedSubcategory: _selectedSubcategory,
+        minPrice: _minPrice,
+        maxPrice: _maxPrice,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    setState(() {
+      _selectedCategory = (result['category'] as String?) ?? 'All';
+      _selectedSubcategory = result['subcategory'] as String?;
+      _minPrice = (result['minPrice'] as String?) ?? '';
+      _maxPrice = (result['maxPrice'] as String?) ?? '';
+    });
   }
 
   Future<void> _addToCart(Map<String, dynamic> product) async {
@@ -126,104 +187,173 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         .getPublicUrl(imagePath);
   }
 
-  Widget _productCard(Map<String, dynamic> product) {
-    final productId = product['id'] as String;
-    final name = (product['name'] as String?) ?? '';
-    final description = (product['description'] as String?) ?? '';
-    final price = product['price'];
-    final stock = product['stock'] as int;
-    final imagePath = (product['image_path'] as String?) ?? '';
-    final imageUrl = _publicImageUrl(imagePath);
-    final isAdding = _addingProductIds.contains(productId);
+  bool _matchesSearch(Map<String, dynamic> product, String query) {
+    final normalizedQuery = query.trim().toLowerCase();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
-                height: 96,
-                width: 96,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 96,
-                  width: 96,
-                  color: Colors.black12,
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.broken_image_outlined),
+    if (normalizedQuery.isEmpty) {
+      return true;
+    }
+
+    final name = ((product['name'] as String?) ?? '').toLowerCase();
+    final description = ((product['description'] as String?) ?? '').toLowerCase();
+    final category = ((product['category'] as String?) ?? '').toLowerCase();
+    final subcategory =
+        ((product['subcategory'] as String?) ?? '').toLowerCase();
+
+    final dynamic rawTags = product['tags'];
+    final tags = rawTags is List
+        ? rawTags.map((tag) => tag.toString().toLowerCase()).toList()
+        : <String>[];
+
+    if (name.contains(normalizedQuery)) return true;
+    if (description.contains(normalizedQuery)) return true;
+    if (category.contains(normalizedQuery)) return true;
+    if (subcategory.contains(normalizedQuery)) return true;
+
+    for (final tag in tags) {
+      if (tag.contains(normalizedQuery)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _matchesCategory(Map<String, dynamic> product) {
+    if (_selectedCategory == 'All') {
+      return true;
+    }
+
+    final category = ((product['category'] as String?) ?? '').trim();
+    return category == _selectedCategory;
+  }
+
+  bool _matchesSubcategory(Map<String, dynamic> product) {
+    if (_selectedSubcategory == null || _selectedSubcategory!.isEmpty) {
+      return true;
+    }
+
+    final subcategory = ((product['subcategory'] as String?) ?? '').trim();
+    return subcategory == _selectedSubcategory;
+  }
+
+  bool _matchesPriceRange(Map<String, dynamic> product) {
+    final rawPrice = product['price'];
+    final price = rawPrice is num
+        ? rawPrice.toDouble()
+        : double.tryParse(rawPrice.toString()) ?? 0;
+
+    final min = double.tryParse(_minPrice.trim());
+    final max = double.tryParse(_maxPrice.trim());
+
+    if (min != null && price < min) return false;
+    if (max != null && price > max) return false;
+
+    return true;
+  }
+
+  List<Map<String, dynamic>> _filteredProducts() {
+    final query = _searchController.text;
+
+    return _products.where((product) {
+      final matchesText = _matchesSearch(product, query);
+      final matchesCategory = _matchesCategory(product);
+      final matchesSubcategory = _matchesSubcategory(product);
+      final matchesPrice = _matchesPriceRange(product);
+
+      return matchesText &&
+          matchesCategory &&
+          matchesSubcategory &&
+          matchesPrice;
+    }).toList();
+  }
+
+  Widget _buildFilterButton() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: _openFilterSheet,
+            child: Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Icon(
+                Icons.tune,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ),
+        if (_activeFilterCount > 0)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                _activeFilterCount.toString(),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '৳$price',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    stock > 0 ? 'In stock: $stock' : 'Out of stock',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: stock > 0
-                          ? AppColors.textSecondary
-                          : AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: 150,
-                    child: FilledButton(
-                      onPressed: stock > 0 && !isAdding
-                          ? () => _addToCart(product)
-                          : null,
-                      child: isAdding
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Add to Cart'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildProductGrid(List<Map<String, dynamic>> filteredProducts) {
+    return GridView.builder(
+      itemCount: filteredProducts.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: 0.62,
       ),
+      itemBuilder: (context, index) {
+        final product = filteredProducts[index];
+        final productId = product['id'] as String;
+        final name = (product['name'] as String?) ?? '';
+        final description = (product['description'] as String?) ?? '';
+        final category = (product['category'] as String?) ?? '';
+        final subcategory = (product['subcategory'] as String?) ?? '';
+        final tags = (product['tags'] as List<dynamic>? ?? const [])
+            .map((tag) => tag.toString())
+            .toList();
+        final price = product['price'];
+        final stock = product['stock'] as int;
+        final imagePath = (product['image_path'] as String?) ?? '';
+        final imageUrl = _publicImageUrl(imagePath);
+        final isAdding = _addingProductIds.contains(productId);
+
+        return BuyerProductGridCard(
+          name: name,
+          description: description,
+          category: category,
+          subcategory: subcategory,
+          tags: tags,
+          imageUrl: imageUrl,
+          price: price,
+          stock: stock,
+          isAdding: isAdding,
+          onAddToCart: () => _addToCart(product),
+        );
+      },
     );
   }
 
@@ -237,64 +367,139 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       );
     }
 
-    if (_products.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Icon(
-                Icons.storefront_outlined,
-                size: 42,
-                color: AppColors.primary,
-              ),
-              SizedBox(height: 14),
-              Text(
-                'No Products Available',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Approved seller products will appear here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final filteredProducts = _filteredProducts();
+    final hasSearch = _searchController.text.trim().isNotEmpty;
 
-    return ListView.separated(
-      itemCount: _products.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
-      itemBuilder: (context, index) => _productCard(_products[index]),
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: BuyerProductSearchBar(
+                controller: _searchController,
+                onChanged: (_) {
+                  setState(() {});
+                },
+                onMicTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Voice search coming soon'),
+                    ),
+                  );
+                },
+                onClear: () {
+                  _searchController.clear();
+                  setState(() {});
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            _buildFilterButton(),
+          ],
+        ),
+        const SizedBox(height: 14),
+        BuyerCategoryFilterBar(
+          categories: _categoryOptions,
+          selectedCategory: _selectedCategory,
+          onSelected: (category) {
+            setState(() {
+              _selectedCategory = category;
+              if (category == 'All') {
+                _selectedSubcategory = null;
+              } else {
+                final subs = ProductTaxonomy.subcategoriesFor(category);
+                if (!subs.contains(_selectedSubcategory)) {
+                  _selectedSubcategory = null;
+                }
+              }
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: _products.isEmpty
+              ? Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(
+                          Icons.storefront_outlined,
+                          size: 42,
+                          color: AppColors.primary,
+                        ),
+                        SizedBox(height: 14),
+                        Text(
+                          'No Products Available',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Approved seller products will appear here.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : filteredProducts.isEmpty
+                  ? Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.search_off_outlined,
+                              size: 42,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'No Matching Products',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              hasSearch || _activeFilterCount > 0
+                                  ? 'No product matched your current search or filters.'
+                                  : 'Try a different search.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : _buildProductGrid(filteredProducts),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Buyer Home'),
-        actions: [
-          IconButton(
-            onPressed: _loadProducts,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _body(),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _body(),
+            ),
           ),
         ),
       ),
