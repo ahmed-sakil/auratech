@@ -57,6 +57,7 @@ class _SignupSellerScreenState extends State<SignupSellerScreen> {
         data: {
           'full_name': fullName,
           'role': 'seller',
+          'status': 'pending',
         },
       );
 

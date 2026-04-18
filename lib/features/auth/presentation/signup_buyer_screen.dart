@@ -57,6 +57,7 @@ class _SignupBuyerScreenState extends State<SignupBuyerScreen> {
         data: {
           'full_name': fullName,
           'role': 'buyer',
+          'status': 'active',
         },
       );
 

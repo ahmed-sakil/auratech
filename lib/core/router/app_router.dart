@@ -12,6 +12,8 @@ import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/auth/presentation/verify_email_otp_screen.dart';
 import '../../features/buyer/presentation/buyer_home_screen.dart';
 import '../../features/seller/presentation/seller_dashboard_screen.dart';
+import '../../features/seller/presentation/seller_onboarding_screen.dart';
+import '../../features/seller/presentation/seller_pending_screen.dart';
 import '../auth/app_session.dart';
 import '../auth/app_session_provider.dart';
 import 'app_routes.dart';
@@ -61,6 +63,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const BuyerHomeScreen(),
       ),
       GoRoute(
+        path: AppRoutes.sellerPending,
+        builder: (context, state) => const SellerPendingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.sellerOnboarding,
+        builder: (context, state) => const SellerOnboardingScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.sellerDashboard,
         builder: (context, state) => const SellerDashboardScreen(),
       ),
@@ -100,15 +110,33 @@ String? _redirect(AppSession session, String location) {
     return publicRoutes.contains(location) ? null : AppRoutes.login;
   }
 
-  final role = session.profile!.role;
+  final profile = session.profile!;
+  final role = profile.role;
+  final status = profile.status;
 
   switch (role) {
     case AppRole.buyer:
       return location == AppRoutes.buyerHome ? null : AppRoutes.buyerHome;
+
     case AppRole.seller:
-      return location == AppRoutes.sellerDashboard
-          ? null
-          : AppRoutes.sellerDashboard;
+      if (status == ProfileStatus.pending) {
+        final allowedPendingRoutes = {
+          AppRoutes.sellerPending,
+          AppRoutes.sellerOnboarding,
+        };
+        return allowedPendingRoutes.contains(location)
+            ? null
+            : AppRoutes.sellerPending;
+      }
+
+      if (status == ProfileStatus.active) {
+        return location == AppRoutes.sellerDashboard
+            ? null
+            : AppRoutes.sellerDashboard;
+      }
+
+      return location == AppRoutes.login ? null : AppRoutes.login;
+
     case AppRole.admin:
       return location == AppRoutes.adminDashboard
           ? null
