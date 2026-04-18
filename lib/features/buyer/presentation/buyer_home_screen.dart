@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/router/app_routes.dart';
+import 'widgets/buyer_bottom_nav_bar.dart';
 
 class BuyerHomeScreen extends StatefulWidget {
   const BuyerHomeScreen({super.key});
@@ -12,22 +14,13 @@ class BuyerHomeScreen extends StatefulWidget {
 
 class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   bool _isLoading = true;
+  Set<String> _addingProductIds = {};
   List<Map<String, dynamic>> _products = [];
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
-  }
-
-  Future<void> _signOut(BuildContext context) async {
-    await Supabase.instance.client.auth.signOut();
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Signed out')),
-    );
   }
 
   Future<void> _loadProducts() async {
@@ -56,6 +49,77 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     }
   }
 
+  Future<void> _addToCart(Map<String, dynamic> product) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final productId = product['id'] as String;
+    final stock = product['stock'] as int;
+
+    if (stock <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This product is out of stock')),
+      );
+      return;
+    }
+
+    setState(() {
+      _addingProductIds = {..._addingProductIds, productId};
+    });
+
+    try {
+      final existing = await Supabase.instance.client
+          .from('cart_items')
+          .select()
+          .eq('buyer_id', user.id)
+          .eq('product_id', productId)
+          .maybeSingle();
+
+      if (existing == null) {
+        await Supabase.instance.client.from('cart_items').insert({
+          'buyer_id': user.id,
+          'product_id': productId,
+          'quantity': 1,
+        });
+      } else {
+        final currentQuantity = existing['quantity'] as int;
+
+        if (currentQuantity >= stock) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cart quantity already reached available stock'),
+            ),
+          );
+          return;
+        }
+
+        await Supabase.instance.client
+            .from('cart_items')
+            .update({'quantity': currentQuantity + 1})
+            .eq('id', existing['id']);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Added to cart')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not add to cart')),
+      );
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _addingProductIds = {..._addingProductIds}..remove(productId);
+      });
+    }
+  }
+
   String _publicImageUrl(String imagePath) {
     return Supabase.instance.client.storage
         .from('product-images')
@@ -63,12 +127,14 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   }
 
   Widget _productCard(Map<String, dynamic> product) {
+    final productId = product['id'] as String;
     final name = (product['name'] as String?) ?? '';
     final description = (product['description'] as String?) ?? '';
     final price = product['price'];
-    final stock = product['stock'];
+    final stock = product['stock'] as int;
     final imagePath = (product['image_path'] as String?) ?? '';
     final imageUrl = _publicImageUrl(imagePath);
+    final isAdding = _addingProductIds.contains(productId);
 
     return Card(
       child: Padding(
@@ -131,6 +197,25 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                       color: stock > 0
                           ? AppColors.textSecondary
                           : AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: 150,
+                    child: FilledButton(
+                      onPressed: stock > 0 && !isAdding
+                          ? () => _addToCart(product)
+                          : null,
+                      child: isAdding
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Add to Cart'),
                     ),
                   ),
                 ],
@@ -202,10 +287,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
             onPressed: _loadProducts,
             icon: const Icon(Icons.refresh),
           ),
-          IconButton(
-            onPressed: () => _signOut(context),
-            icon: const Icon(Icons.logout),
-          ),
         ],
       ),
       body: Center(
@@ -216,6 +297,9 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
             child: _body(),
           ),
         ),
+      ),
+      bottomNavigationBar: const BuyerBottomNavBar(
+        currentRoute: AppRoutes.buyerHome,
       ),
     );
   }

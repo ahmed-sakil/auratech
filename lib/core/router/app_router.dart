@@ -10,7 +10,9 @@ import '../../features/auth/presentation/signup_buyer_screen.dart';
 import '../../features/auth/presentation/signup_seller_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/auth/presentation/verify_email_otp_screen.dart';
+import '../../features/buyer/presentation/buyer_cart_screen.dart';
 import '../../features/buyer/presentation/buyer_home_screen.dart';
+import '../../features/buyer/presentation/buyer_profile_screen.dart';
 import '../../features/seller/presentation/seller_dashboard_screen.dart';
 import '../../features/seller/presentation/seller_onboarding_screen.dart';
 import '../../features/seller/presentation/seller_pending_screen.dart';
@@ -61,6 +63,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.buyerHome,
         builder: (context, state) => const BuyerHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerCart,
+        builder: (context, state) => const BuyerCartScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerProfile,
+        builder: (context, state) => const BuyerProfileScreen(),
       ),
       GoRoute(
         path: AppRoutes.sellerPending,
@@ -116,7 +126,12 @@ String? _redirect(AppSession session, String location) {
 
   switch (role) {
     case AppRole.buyer:
-      return location == AppRoutes.buyerHome ? null : AppRoutes.buyerHome;
+      final allowedBuyerRoutes = {
+        AppRoutes.buyerHome,
+        AppRoutes.buyerCart,
+        AppRoutes.buyerProfile,
+      };
+      return allowedBuyerRoutes.contains(location) ? null : AppRoutes.buyerHome;
 
     case AppRole.seller:
       if (status == ProfileStatus.pending) {
