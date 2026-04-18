@@ -4,12 +4,11 @@ import '../constants/app_colors.dart';
 
 class AppTheme {
   static ThemeData get lightTheme {
-    final colorScheme = ColorScheme(
-      brightness: Brightness.dark,
+    final colorScheme = const ColorScheme.light(
       primary: AppColors.primary,
       onPrimary: AppColors.white,
       secondary: AppColors.primarySoft,
-      onSecondary: AppColors.white,
+      onSecondary: AppColors.primary,
       error: AppColors.error,
       onError: AppColors.white,
       surface: AppColors.surface,
@@ -18,10 +17,11 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
       canvasColor: AppColors.background,
+      dividerColor: AppColors.divider,
 
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.background,
@@ -41,13 +41,20 @@ class AppTheme {
         ),
       ),
 
-      dividerColor: AppColors.divider,
-
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceSoft,
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
-        hintStyle: const TextStyle(color: AppColors.textMuted),
+        labelStyle: const TextStyle(
+          color: AppColors.textSecondary,
+          fontWeight: FontWeight.w500,
+        ),
+        hintStyle: const TextStyle(
+          color: AppColors.textMuted,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.border),
@@ -73,7 +80,7 @@ class AppTheme {
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
           color: AppColors.textPrimary,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
         ),
         headlineMedium: TextStyle(
           color: AppColors.textPrimary,
@@ -106,7 +113,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(14),
           ),
           textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             fontSize: 15,
           ),
         ),
@@ -121,23 +128,34 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
         ),
       ),
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.textPrimary,
+          backgroundColor: AppColors.surface,
           minimumSize: const Size.fromHeight(52),
           side: const BorderSide(color: AppColors.border),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
         ),
       ),
 
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.surfaceSoft,
-        contentTextStyle: const TextStyle(color: AppColors.textPrimary),
+        backgroundColor: AppColors.textPrimary,
+        contentTextStyle: const TextStyle(
+          color: AppColors.white,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),

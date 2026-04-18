@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -268,6 +269,19 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     }).toList();
   }
 
+  void _openProductDetails(Map<String, dynamic> product) {
+    final imagePath = (product['image_path'] as String?) ?? '';
+    final imageUrl = _publicImageUrl(imagePath);
+
+    context.push(
+      AppRoutes.buyerProductDetails,
+      extra: {
+        ...product,
+        'image_url': imageUrl,
+      },
+    );
+  }
+
   Widget _buildFilterButton() {
     return Stack(
       clipBehavior: Clip.none,
@@ -321,39 +335,65 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       itemCount: filteredProducts.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        childAspectRatio: 0.62,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.60,
       ),
       itemBuilder: (context, index) {
         final product = filteredProducts[index];
         final productId = product['id'] as String;
-        final name = (product['name'] as String?) ?? '';
-        final description = (product['description'] as String?) ?? '';
-        final category = (product['category'] as String?) ?? '';
-        final subcategory = (product['subcategory'] as String?) ?? '';
-        final tags = (product['tags'] as List<dynamic>? ?? const [])
-            .map((tag) => tag.toString())
-            .toList();
-        final price = product['price'];
-        final stock = product['stock'] as int;
         final imagePath = (product['image_path'] as String?) ?? '';
         final imageUrl = _publicImageUrl(imagePath);
-        final isAdding = _addingProductIds.contains(productId);
 
         return BuyerProductGridCard(
-          name: name,
-          description: description,
-          category: category,
-          subcategory: subcategory,
-          tags: tags,
+          product: product,
           imageUrl: imageUrl,
-          price: price,
-          stock: stock,
-          isAdding: isAdding,
-          onAddToCart: () => _addToCart(product),
+          onTap: () => _openProductDetails(product),
+          onAddToCart: _addingProductIds.contains(productId)
+              ? () {}
+              : () => _addToCart(product),
         );
       },
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 44,
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -418,70 +458,18 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         const SizedBox(height: 16),
         Expanded(
           child: _products.isEmpty
-              ? Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(
-                          Icons.storefront_outlined,
-                          size: 42,
-                          color: AppColors.primary,
-                        ),
-                        SizedBox(height: 14),
-                        Text(
-                          'No Products Available',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Approved seller products will appear here.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
+              ? _buildEmptyState(
+                  icon: Icons.storefront_outlined,
+                  title: 'No Products Available',
+                  subtitle: 'Approved seller products will appear here.',
                 )
               : filteredProducts.isEmpty
-                  ? Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.search_off_outlined,
-                              size: 42,
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(height: 14),
-                            const Text(
-                              'No Matching Products',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              hasSearch || _activeFilterCount > 0
-                                  ? 'No product matched your current search or filters.'
-                                  : 'Try a different search.',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  ? _buildEmptyState(
+                      icon: Icons.search_off_outlined,
+                      title: 'No Matching Products',
+                      subtitle: hasSearch || _activeFilterCount > 0
+                          ? 'No product matched your current search or filters.'
+                          : 'Try a different search.',
                     )
                   : _buildProductGrid(filteredProducts),
         ),

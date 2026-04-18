@@ -12,6 +12,8 @@ import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/auth/presentation/verify_email_otp_screen.dart';
 import '../../features/buyer/presentation/buyer_cart_screen.dart';
 import '../../features/buyer/presentation/buyer_home_screen.dart';
+import '../../features/buyer/presentation/buyer_orders_screen.dart';
+import '../../features/buyer/presentation/buyer_product_details_screen.dart';
 import '../../features/buyer/presentation/buyer_profile_screen.dart';
 import '../../features/seller/presentation/seller_dashboard_screen.dart';
 import '../../features/seller/presentation/seller_onboarding_screen.dart';
@@ -69,8 +71,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const BuyerCartScreen(),
       ),
       GoRoute(
+        path: AppRoutes.buyerOrders,
+        builder: (context, state) => const BuyerOrdersScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.buyerProfile,
         builder: (context, state) => const BuyerProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerProductDetails,
+        builder: (context, state) {
+          final product = state.extra as Map<String, dynamic>;
+          return BuyerProductDetailsScreen(product: product);
+        },
       ),
       GoRoute(
         path: AppRoutes.sellerPending,
@@ -129,7 +142,9 @@ String? _redirect(AppSession session, String location) {
       final allowedBuyerRoutes = {
         AppRoutes.buyerHome,
         AppRoutes.buyerCart,
+        AppRoutes.buyerOrders,
         AppRoutes.buyerProfile,
+        AppRoutes.buyerProductDetails,
       };
       return allowedBuyerRoutes.contains(location) ? null : AppRoutes.buyerHome;
 

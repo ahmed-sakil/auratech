@@ -17,8 +17,10 @@ class BuyerBottomNavBar extends StatelessWidget {
         return 0;
       case AppRoutes.buyerCart:
         return 1;
-      case AppRoutes.buyerProfile:
+      case AppRoutes.buyerOrders:
         return 2;
+      case AppRoutes.buyerProfile:
+        return 3;
       default:
         return 0;
     }
@@ -33,6 +35,9 @@ class BuyerBottomNavBar extends StatelessWidget {
         context.go(AppRoutes.buyerCart);
         break;
       case 2:
+        context.go(AppRoutes.buyerOrders);
+        break;
+      case 3:
         context.go(AppRoutes.buyerProfile);
         break;
     }
@@ -53,6 +58,11 @@ class BuyerBottomNavBar extends StatelessWidget {
           icon: Icon(Icons.shopping_cart_outlined),
           selectedIcon: Icon(Icons.shopping_cart),
           label: 'Cart',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.receipt_long_outlined),
+          selectedIcon: Icon(Icons.receipt_long),
+          label: 'Orders',
         ),
         NavigationDestination(
           icon: Icon(Icons.person_outline),

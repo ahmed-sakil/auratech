@@ -9,7 +9,9 @@ class AppRoutes {
 
   static const String buyerHome = '/buyer-home';
   static const String buyerCart = '/buyer-cart';
+  static const String buyerOrders = '/buyer-orders';
   static const String buyerProfile = '/buyer-profile';
+  static const String buyerProductDetails = '/buyer-product-details';
 
   static const String sellerPending = '/seller-pending';
   static const String sellerOnboarding = '/seller-onboarding';
